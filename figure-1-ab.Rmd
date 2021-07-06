@@ -1,0 +1,52 @@
+---
+title: "figure-1-ab"
+author: "Mac Campbell"
+date: "July 5, 2021"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, warning=FALSE, message=FALSE)
+```
+
+```{r}
+library(tidyverse)
+library(BSDA)
+library(ggmap)
+```
+
+## Map of samples in analyses
+
+Starting with base data.
+
+```{r}
+mapbox <- c(-122.5, 37.75, -121.25, 38.5)
+sfe <- get_stamenmap(mapbox, maptype = "terrain-background")
+base<-ggmap(sfe) + 
+  xlab("\nLongitude") +
+  ylab("Latitude\n")
+```
+
+Get meta and summarize
+```{r}
+top2013<-read_csv("metadata/2012-samples.csv")
+
+toplot<-top2013  %>% mutate(Phenotype=ifelse(new_classes=="FWR1","FWR","MIG")) %>%
+  group_by(Phenotype, lon, lat) %>%
+   summarize(Count=n()) %>% unique()
+```
+
+```{r}
+map<-base +
+  geom_point(data=toplot, aes(x=lon, y=lat, fill=Phenotype, size=Count), alpha=0.75, pch=21) +
+ # geom_label_repel(data=toplot, aes(x=lon, y=lat, label=paste0(new_classes, "-", Count))) +
+  facet_wrap(.~Phenotype, ncol=2) +
+  xlab("") +
+  ylab("") +
+  theme(axis.text = element_blank()) +
+  theme(axis.ticks = element_blank()) +
+  scale_fill_manual(values=c("red","blue"))
+map
+
+ggsave("outputs/figure-1-ab/figure1ab.jpg", width=11, height=8.5/2)
+```

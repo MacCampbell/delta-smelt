@@ -77,6 +77,8 @@ write_tsv(phenos, "phenos/2012.phenos", col_names=FALSE)
 
 sex<-tops %>% select(sex)
 write_tsv(sex, "phenos/2012.cov", col_names=FALSE)
+
+write_csv(tops, "metadata/2012-samples.csv")
 ```
 
 
@@ -96,3 +98,5 @@ srun -p high -t 48:00:00 --mem=32G --nodes=2 $HOME/angsd/angsd -P 24  -bam $HOME
 -ref $HOME/genomes/hypomesus-20210204/Hyp_tra_F_20210204.fa -rf $HOME/genomes/hypomesus-20210204/large-contigs.txt \
 > outputs/100/assoc05-75-2-nocov.out 2> outputs/100/assoc05-75-2-nocov.err &
 ```
+
+
