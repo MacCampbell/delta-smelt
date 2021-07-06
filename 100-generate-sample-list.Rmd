@@ -1,0 +1,98 @@
+---
+title: "100-generate-sample-list"
+author: "Mac Campbell"
+date: "July 5, 2021"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, warning=FALSE, message=FALSE)
+```
+
+```{r}
+library(tidyverse)
+```
+
+## What do we have?
+
+```{r}
+metaall<-read_csv("metadata/genetics-oto-intersect-06032021_JH.csv") %>%
+  filter(aggregated_new_classes %in% c("FWR","MIG")) %>%
+  filter(`Birth Year (HOBBS)`==2012)
+
+metaall %>% group_by(aggregated_new_classes) %>% summarize(Count=n())
+```
+
+Let's round up those raw fastqs and align to the genome.     
+
+__1__ Find samples     
+__2__ Align    
+__3__ Filter low-coverage samples    
+__4__ Run association
+For 1 & 2, see doAlign.sh for basics.
+
+### Get number of reads/bam file.    
+
+` ls | grep sort.flt.bam | grep -v bai | while read line; do samtools flagstat $line | grep mapped | head -n 1 >> counts.txt; done;`     
+` ls | grep sort.flt.bam | grep -v bai >> counts.files.txt`    
+
+```{r}
+files<-read_tsv("outputs/100/counts.files.txt", col_names="File")
+counts<-read_tsv("outputs/100/counts.txt", col_names="Counts")
+counts$Counts<-gsub(" + 0 mapped (100.00% : N/A)", "", counts$Counts, fixed = TRUE)
+
+counted<-bind_cols(files,counts)
+counted$`Sequence File Name`<-gsub("_R1.sort.flt.bam","",counted$File)
+```
+
+```{r}
+reads<-left_join(metaall, counted) %>%
+  mutate(R1=paste0(`Sequence File Name`,"_R1")) %>% 
+  mutate(R2=paste0(`Sequence File Name`,"_R2"))  %>%
+  mutate(Pheno=ifelse(aggregated_new_classes=="MIG",0,1))
+reads$Counts<-as.numeric(reads$Counts)
+write_csv(reads, "outputs/100/reads.csv")
+```
+
+```{r}
+tops<-reads %>% top_frac(.9, Counts) %>% filter(sex!=0)
+tops %>% group_by(Pheno, sex) %>% summarize(Count=n())
+```
+
+```{r}
+ggplot(tops) +
+  geom_histogram(aes(Counts)) +
+  facet_wrap(.~Pheno) +
+  xlim(0, max(tops$Counts))
+```
+
+## Generate Bamlists, Phenotype and Sex Files
+
+```{r}
+bamlist<-tops %>% select(File) %>% mutate(Path=paste0("bams/",File)) %>% select(Path)
+write_tsv(bamlist, "bamlists/2012.bamlist", col_names=FALSE)
+
+phenos<-tops %>% select(Pheno) 
+write_tsv(phenos, "phenos/2012.phenos", col_names=FALSE)
+
+sex<-tops %>% select(sex)
+write_tsv(sex, "phenos/2012.cov")
+```
+
+
+## doAsso
+With and without sex as cov ay 75% thresh    
+
+```{sh, eval=FALSE}
+srun -p high -t 48:00:00 --mem=32G --nodes=2 $HOME/angsd/angsd -P 24  -bam $HOME/delta-smelt/bamlists/2012.bamlist \
+-yBin $HOME/delta-smelt/phenos/2012.phenos -cov $HOME/delta-smelt/phenos/2012.cov -minMapQ 20 -minQ 20 -minInd 109 -doAsso 2 \ 
+-doPost 1 -GL 1 -minCount 2 -out $HOME/delta-smelt/outputs/2012/assoc05-75-2 -doMajorMinor 1 -doMaf 1 -SNP_pval 1e-6 \
+-ref $HOME/genomes/hypomesus-20210204/Hyp_tra_F_20210204.fa -rf $HOME/genomes/hypomesus-20210204/large-contigs.txt \
+> outputs/100/assoc05-75-2.out 2> outputs/100/assoc05-75-2.err &
+
+srun -p high -t 48:00:00 --mem=32G --nodes=2 $HOME/angsd/angsd -P 24  -bam $HOME/delta-smelt/bamlists/2012.bamlist \
+-yBin $HOME/delta-smelt/phenos/2012.phenos -minMapQ 20 -minQ 20 -minInd 109 -doAsso 2 -doPost 1 -GL 1 -minCount 2 \
+-out $HOME/delta-smelt/outputs/100/assoc05-75-2-nocov -doMajorMinor 1 -doMaf 1 -SNP_pval 1e-6 \
+-ref $HOME/genomes/hypomesus-20210204/Hyp_tra_F_20210204.fa -rf $HOME/genomes/hypomesus-20210204/large-contigs.txt \
+> outputs/100/assoc05-75-2-nocov.out 2> outputs/100/assoc05-75-2-nocov.err &
+```
