@@ -13,11 +13,8 @@ bams/Ht20-42_2012_B06_R1.sort.flt.bam
 bams/Ht20-50_2012_B07_R1.sort.flt.bam
 bams/Ht20-58_2012_B08_R1.sort.flt.bam
 bams/Ht20-66_2012_B09_R1.sort.flt.bam
-bams/Ht20-74_2012_B10_R1.sort.flt.bam
-bams/Ht20-82_2012_B11_R1.sort.flt.bam
 bams/Ht20-90_2012_B12_R1.sort.flt.bam
 bams/Ht20-03_2012_C01_R1.sort.flt.bam
-bams/Ht20-11_2012_C02_R1.sort.flt.bam
 bams/Ht20-19_2012_C03_R1.sort.flt.bam
 bams/Ht20-27_2012_C04_R1.sort.flt.bam
 bams/Ht20-35_2012_C05_R1.sort.flt.bam
@@ -36,7 +33,6 @@ bams/Ht20-52_2012_D07_R1.sort.flt.bam
 bams/Ht20-60_2012_D08_R1.sort.flt.bam
 bams/Ht20-68_2012_D09_R1.sort.flt.bam
 bams/Ht20-76_2012_D10_R1.sort.flt.bam
-bams/Ht20-92_2012_D12_R1.sort.flt.bam
 bams/Ht20-05_2012_E01_R1.sort.flt.bam
 bams/Ht20-13_2012_E02_R1.sort.flt.bam
 bams/Ht20-29_2012_E04_R1.sort.flt.bam
@@ -46,20 +42,14 @@ bams/Ht20-93_2012_E12_R1.sort.flt.bam
 bams/Ht20-06_2012_F01_R1.sort.flt.bam
 bams/Ht20-38_2012_F05_R1.sort.flt.bam
 bams/Ht20-46_2012_F06_R1.sort.flt.bam
-bams/Ht20-54_2012_F07_R1.sort.flt.bam
 bams/Ht20-62_2012_F08_R1.sort.flt.bam
 bams/Ht20-70_2012_F09_R1.sort.flt.bam
-bams/Ht20-07_2012_G01_R1.sort.flt.bam
-bams/Ht20-15_2012_G02_R1.sort.flt.bam
 bams/Ht20-23_2012_G03_R1.sort.flt.bam
 bams/Ht20-39_2012_G05_R1.sort.flt.bam
 bams/Ht20-47_2012_G06_R1.sort.flt.bam
-bams/Ht20-71_2012_G09_R1.sort.flt.bam
 bams/Ht20-79_2012_G10_R1.sort.flt.bam
 bams/Ht20-87_2012_G11_R1.sort.flt.bam
-bams/Ht20-95_2012_G12_R1.sort.flt.bam
 bams/Ht20-24_2012_H03_R1.sort.flt.bam
-bams/Ht20-32_2012_H04_R1.sort.flt.bam
 bams/Ht20-40_2012_H05_R1.sort.flt.bam
 bams/Ht20-48_2012_H06_R1.sort.flt.bam
 bams/Ht20-56_2012_H07_R1.sort.flt.bam
@@ -97,7 +87,6 @@ bams/Ht19-35_2012_C05_R1.sort.flt.bam
 bams/Ht19-59_2012_C08_R1.sort.flt.bam
 bams/Ht19-67_2012_C09_R1.sort.flt.bam
 bams/Ht19-75_2012_C10_R1.sort.flt.bam
-bams/Ht19-83_2012_C11_R1.sort.flt.bam
 bams/Ht19-91_2012_C12_R1.sort.flt.bam
 bams/Ht19-04_2012_D01_R1.sort.flt.bam
 bams/Ht19-12_2012_D02_R1.sort.flt.bam
@@ -105,7 +94,6 @@ bams/Ht19-36_2012_D05_R1.sort.flt.bam
 bams/Ht19-44_2012_D06_R1.sort.flt.bam
 bams/Ht19-60_2012_D08_R1.sort.flt.bam
 bams/Ht19-76_2012_D10_R1.sort.flt.bam
-bams/Ht19-84_2012_D11_R1.sort.flt.bam
 bams/Ht19-92_2012_D12_R1.sort.flt.bam
 bams/Ht19-05_2012_E01_R1.sort.flt.bam
 bams/Ht19-13_2012_E02_R1.sort.flt.bam
@@ -121,7 +109,6 @@ bams/Ht19-06_2012_F01_R1.sort.flt.bam
 bams/Ht19-14_2012_F02_R1.sort.flt.bam
 bams/Ht19-22_2012_F03_R1.sort.flt.bam
 bams/Ht19-30_2012_F04_R1.sort.flt.bam
-bams/Ht19-54_2012_F07_R1.sort.flt.bam
 bams/Ht19-62_2012_F08_R1.sort.flt.bam
 bams/Ht19-70_2012_F09_R1.sort.flt.bam
 bams/Ht19-94_2012_F12_R1.sort.flt.bam
@@ -134,9 +121,7 @@ bams/Ht19-55_2012_G07_R1.sort.flt.bam
 bams/Ht19-63_2012_G08_R1.sort.flt.bam
 bams/Ht19-71_2012_G09_R1.sort.flt.bam
 bams/Ht19-79_2012_G10_R1.sort.flt.bam
-bams/Ht19-95_2012_G12_R1.sort.flt.bam
 bams/Ht19-24_2012_H03_R1.sort.flt.bam
-bams/Ht19-40_2012_H05_R1.sort.flt.bam
 bams/Ht19-48_2012_H06_R1.sort.flt.bam
 bams/Ht19-56_2012_H07_R1.sort.flt.bam
 bams/Ht19-64_2012_H08_R1.sort.flt.bam

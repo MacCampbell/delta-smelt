@@ -13,6 +13,7 @@ knitr::opts_chunk$set(echo = TRUE, warning=FALSE, message=FALSE)
 library(tidyverse)
 library(BSDA)
 library(ggmap)
+library(ggsn)
 ```
 
 ## Map of samples in analyses
@@ -41,11 +42,17 @@ map<-base +
   geom_point(data=toplot, aes(x=lon, y=lat, fill=Phenotype, size=Count), alpha=0.75, pch=21) +
  # geom_label_repel(data=toplot, aes(x=lon, y=lat, label=paste0(new_classes, "-", Count))) +
   facet_wrap(.~Phenotype, ncol=2) +
-  xlab("") +
-  ylab("") +
-  theme(axis.text = element_blank()) +
-  theme(axis.ticks = element_blank()) +
-  scale_fill_manual(values=c("red","blue"))
+  xlab("\nLongitude") +
+  ylab("Latitude\n") +
+  theme(axis.text.x = element_text(angle=45, vjust = 1, hjust=1)) +
+#  theme(axis.ticks = element_blank()) +
+  scale_fill_manual(values=c("red","blue")) +
+   ggsn::scalebar(x.min =mapbox[1], x.max= mapbox[3], y.min=mapbox[2], y.max=mapbox[4],
+                 dist = 25, dist_unit = "km", st.size=3, height=0.04, transform=TRUE, model = 'WGS84',
+                 st.color="black", location = "bottomright") +
+  theme(panel.margin = unit(2, "lines")) +
+  theme(strip.text.x = element_text(face="bold", size=12)) 
+
 map
 
 ggsave("outputs/figure-1-ab/figure1ab.jpg", width=11, height=8.5/2)

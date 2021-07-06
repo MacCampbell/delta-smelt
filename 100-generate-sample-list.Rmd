@@ -55,8 +55,8 @@ write_csv(reads, "outputs/100/reads.csv")
 ```
 
 ```{r}
-tops<-reads %>% top_frac(.9, Counts) %>% filter(sex!=0)
-tops %>% group_by(Pheno, sex) %>% summarize(Count=n())
+tops<-reads %>% top_frac(.8, Counts) %>% filter(sex!=0)
+tops %>% group_by(Pheno) %>% summarize(Count=n())
 ```
 
 ```{r}
@@ -87,16 +87,31 @@ With and without sex as cov ay 75% thresh
 
 ```{sh, eval=FALSE}
 srun -p high -t 48:00:00 --mem=32G --nodes=2 $HOME/angsd/angsd -P 24  -bam $HOME/delta-smelt/bamlists/2012.bamlist \
--yBin $HOME/delta-smelt/phenos/2012.phenos -cov $HOME/delta-smelt/phenos/2012.cov -minMapQ 20 -minQ 20 -minInd 109 -doAsso 2 \
+-yBin $HOME/delta-smelt/phenos/2012.phenos -cov $HOME/delta-smelt/phenos/2012.cov -minMapQ 20 -minQ 20 -minInd 98 -doAsso 2 \
 -doPost 1 -GL 1 -minCount 2 -out $HOME/delta-smelt/outputs/100/assoc05-75-2 -doMajorMinor 1 -doMaf 1 -SNP_pval 1e-6 \
 -ref $HOME/genomes/hypomesus-20210204/Hyp_tra_F_20210204.fa -rf $HOME/genomes/hypomesus-20210204/large-contigs.txt \
 > outputs/100/assoc05-75-2.out 2> outputs/100/assoc05-75-2.err &
 
 srun -p high -t 48:00:00 --mem=32G --nodes=2 $HOME/angsd/angsd -P 24  -bam $HOME/delta-smelt/bamlists/2012.bamlist \
--yBin $HOME/delta-smelt/phenos/2012.phenos -minMapQ 20 -minQ 20 -minInd 109 -doAsso 2 -doPost 1 -GL 1 -minCount 2 \
+-yBin $HOME/delta-smelt/phenos/2012.phenos -minMapQ 20 -minQ 20 -minInd 98 -doAsso 2 -doPost 1 -GL 1 -minCount 2 \
 -out $HOME/delta-smelt/outputs/100/assoc05-75-2-nocov -doMajorMinor 1 -doMaf 1 -SNP_pval 1e-6 \
 -ref $HOME/genomes/hypomesus-20210204/Hyp_tra_F_20210204.fa -rf $HOME/genomes/hypomesus-20210204/large-contigs.txt \
 > outputs/100/assoc05-75-2-nocov.out 2> outputs/100/assoc05-75-2-nocov.err &
+```
+
+Check on these:
+
+```{r}
+d4<-read_tsv(file="outputs/100/assoc05-75-2.lrt0.gz") %>% mutate(log10p = -log10(dchisq(LRT, df = 1))) %>%
+  filter(log10p>=0 & log10p != "Inf") %>%
+  mutate(p = dchisq(LRT, df=1)) %>%
+  mutate(bonfer = p.adjust(p, method = "bonferroni")) %>% 
+  mutate(BHfdr = p.adjust(p, method = "BH")) %>%
+  group_by(Chromosome) %>%
+  mutate(adjpchrom = p.adjust(p, method = "bonferroni")) %>%
+  mutate(BHfdrchrom = p.adjust(p, method = "BH"))
+
+d4 %>% arrange(-LRT) %>% head()
 ```
 
 
