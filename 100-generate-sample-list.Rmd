@@ -76,7 +76,7 @@ phenos<-tops %>% select(Pheno)
 write_tsv(phenos, "phenos/2012.phenos", col_names=FALSE)
 
 sex<-tops %>% select(sex)
-write_tsv(sex, "phenos/2012.cov")
+write_tsv(sex, "phenos/2012.cov", col_names=FALSE)
 ```
 
 
@@ -85,8 +85,8 @@ With and without sex as cov ay 75% thresh
 
 ```{sh, eval=FALSE}
 srun -p high -t 48:00:00 --mem=32G --nodes=2 $HOME/angsd/angsd -P 24  -bam $HOME/delta-smelt/bamlists/2012.bamlist \
--yBin $HOME/delta-smelt/phenos/2012.phenos -cov $HOME/delta-smelt/phenos/2012.cov -minMapQ 20 -minQ 20 -minInd 109 -doAsso 2 \ 
--doPost 1 -GL 1 -minCount 2 -out $HOME/delta-smelt/outputs/2012/assoc05-75-2 -doMajorMinor 1 -doMaf 1 -SNP_pval 1e-6 \
+-yBin $HOME/delta-smelt/phenos/2012.phenos -cov $HOME/delta-smelt/phenos/2012.cov -minMapQ 20 -minQ 20 -minInd 109 -doAsso 2 \
+-doPost 1 -GL 1 -minCount 2 -out $HOME/delta-smelt/outputs/100/assoc05-75-2 -doMajorMinor 1 -doMaf 1 -SNP_pval 1e-6 \
 -ref $HOME/genomes/hypomesus-20210204/Hyp_tra_F_20210204.fa -rf $HOME/genomes/hypomesus-20210204/large-contigs.txt \
 > outputs/100/assoc05-75-2.out 2> outputs/100/assoc05-75-2.err &
 
