@@ -15,8 +15,10 @@ library(tidyverse)
 
 ## What do we have?
 
+Dropping two known problematic samples
 ```{r}
 metaall<-read_csv("metadata/genetics-oto-intersect-06032021_JH.csv") %>%
+  filter(!(`Sequence File Name` %in% c("Ht20-30_2012_F04","Ht20-77_2012_E10"))) %>%
   filter(aggregated_new_classes %in% c("FWR","MIG")) %>%
   filter(`Birth Year (HOBBS)`==2012)
 
@@ -55,8 +57,8 @@ write_csv(reads, "outputs/100/reads.csv")
 ```
 
 ```{r}
-tops<-reads %>% top_frac(.8, Counts) %>% filter(sex!=0)
-tops %>% group_by(Pheno) %>% summarize(Count=n())
+tops<-reads %>% top_frac(.75, Counts) %>% filter(sex!=0)
+tops %>% group_by(aggregated_new_classes ,sex) %>% summarize(Count=n())
 ```
 
 ```{r}
@@ -83,17 +85,17 @@ write_csv(tops, "metadata/2012-samples.csv")
 
 
 ## doAsso
-With and without sex as cov ay 75% thresh    
+With and without sex as cov at 75% thresh for individuals
 
 ```{sh, eval=FALSE}
 srun -p high -t 48:00:00 --mem=32G --nodes=2 $HOME/angsd/angsd -P 24  -bam $HOME/delta-smelt/bamlists/2012.bamlist \
--yBin $HOME/delta-smelt/phenos/2012.phenos -cov $HOME/delta-smelt/phenos/2012.cov -minMapQ 20 -minQ 20 -minInd 98 -doAsso 2 \
+-yBin $HOME/delta-smelt/phenos/2012.phenos -cov $HOME/delta-smelt/phenos/2012.cov -minMapQ 20 -minQ 20 -minInd 91 -doAsso 2 \
 -doPost 1 -GL 1 -minCount 2 -out $HOME/delta-smelt/outputs/100/assoc05-75-2 -doMajorMinor 1 -doMaf 1 -SNP_pval 1e-6 \
 -ref $HOME/genomes/hypomesus-20210204/Hyp_tra_F_20210204.fa -rf $HOME/genomes/hypomesus-20210204/large-contigs.txt \
 > outputs/100/assoc05-75-2.out 2> outputs/100/assoc05-75-2.err &
 
 srun -p high -t 48:00:00 --mem=32G --nodes=2 $HOME/angsd/angsd -P 24  -bam $HOME/delta-smelt/bamlists/2012.bamlist \
--yBin $HOME/delta-smelt/phenos/2012.phenos -minMapQ 20 -minQ 20 -minInd 98 -doAsso 2 -doPost 1 -GL 1 -minCount 2 \
+-yBin $HOME/delta-smelt/phenos/2012.phenos -minMapQ 20 -minQ 20 -minInd 91 -doAsso 2 -doPost 1 -GL 1 -minCount 2 \
 -out $HOME/delta-smelt/outputs/100/assoc05-75-2-nocov -doMajorMinor 1 -doMaf 1 -SNP_pval 1e-6 \
 -ref $HOME/genomes/hypomesus-20210204/Hyp_tra_F_20210204.fa -rf $HOME/genomes/hypomesus-20210204/large-contigs.txt \
 > outputs/100/assoc05-75-2-nocov.out 2> outputs/100/assoc05-75-2-nocov.err &
