@@ -1,0 +1,105 @@
+---
+title: "figure-2"
+author: "Mac Campbell"
+date: "July 6, 2021"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, warning=FALSE, message=FALSE)
+```
+
+```{r}
+library(tidyverse)
+library(RColorBrewer)
+```
+
+## Figure 2
+
+doAsso     
+With and without sex as cov at 75% thresh for individuals
+
+```{sh, eval=FALSE}
+srun -p high -t 48:00:00 --mem=32G --nodes=2 $HOME/angsd/angsd -P 24  -bam $HOME/delta-smelt/bamlists/2012.bamlist \
+-yBin $HOME/delta-smelt/phenos/2012.phenos -cov $HOME/delta-smelt/phenos/2012.cov -minMapQ 20 -minQ 20 -minInd 91 -doAsso 2 \
+-doPost 1 -GL 1 -minCount 2 -out $HOME/delta-smelt/outputs/100/assoc05-75-2 -doMajorMinor 1 -doMaf 1 -SNP_pval 1e-6 \
+-ref $HOME/genomes/hypomesus-20210204/Hyp_tra_F_20210204.fa -rf $HOME/genomes/hypomesus-20210204/large-contigs.txt \
+> outputs/100/assoc05-75-2.out 2> outputs/100/assoc05-75-2.err &
+
+srun -p high -t 48:00:00 --mem=32G --nodes=2 $HOME/angsd/angsd -P 24  -bam $HOME/delta-smelt/bamlists/2012.bamlist \
+-yBin $HOME/delta-smelt/phenos/2012.phenos -minMapQ 20 -minQ 20 -minInd 91 -doAsso 2 -doPost 1 -GL 1 -minCount 2 \
+-out $HOME/delta-smelt/outputs/100/assoc05-75-2-nocov -doMajorMinor 1 -doMaf 1 -SNP_pval 1e-6 \
+-ref $HOME/genomes/hypomesus-20210204/Hyp_tra_F_20210204.fa -rf $HOME/genomes/hypomesus-20210204/large-contigs.txt \
+> outputs/100/assoc05-75-2-nocov.out 2> outputs/100/assoc05-75-2-nocov.err &
+```
+
+Check on these:
+
+```{r}
+df<-read_tsv(file="outputs/100/assoc05-75-2.lrt0.gz") %>% mutate(log10p = -log10(dchisq(LRT, df = 1))) %>%
+  filter(log10p>=0 & log10p != "Inf") %>%
+  mutate(p = dchisq(LRT, df=1)) %>%
+  mutate(bonfer = p.adjust(p, method = "bonferroni")) %>% 
+  mutate(BHfdr = p.adjust(p, method = "BH")) %>%
+  group_by(Chromosome) %>%
+  mutate(adjpchrom = p.adjust(p, method = "bonferroni")) %>%
+  mutate(BHfdrchrom = p.adjust(p, method = "BH"))
+
+df %>% arrange(-LRT) %>% head(n=20)
+```
+
+Calculate some significance threshold
+```{r}
+variants<-nrow(df)
+#Number of expected variants
+num<-25
+p.T = num/variants 
+prior.odds = p.T/(1-p.T) 
+pwr = 1 #upper bound for power --> upper bound for alpha 
+post.odds = 0.95/(1-0.95) 
+alpha = prior.odds*pwr/post.odds 
+paste(signif(alpha,3)) 
+-log10(alpha)
+df %>% dplyr::filter(log10p > -log10(alpha)) 
+write_csv(df, file="outputs/figure-2/association-results.csv")
+```
+
+```{r}
+
+data<-df  %>% filter(str_detect(Chromosome, "lg"))
+dd <- data %>% ungroup %>% mutate(Index=1:n())
+dd$Chromosome<-as.factor(dd$Chromosome)
+
+chroms<-dd %>% group_by(Chromosome) %>% mutate(Start=min(Index), Stop=max(Index)) %>% 
+  select(Chromosome,Start,Stop) %>% unique() %>% 
+  mutate(Position=round((Start+Stop)/2))
+
+outliers <- dd %>% filter(log10p >= -log10(alpha))
+#Make enough colors
+nb.cols <- nrow(chroms)
+mycolors <- colorRampPalette(brewer.pal(8, "Set1"))(nb.cols)
+#randomize
+mycolors<-sample(mycolors)
+
+ggplot(dd) +
+  geom_point(data=dd, aes(x=Index, y=log10p, color=Chromosome), alpha=0.75, cex=0.5) +
+  geom_point(data=outliers, aes(x=Index, y=log10p, fill=Chromosome), pch=21, cex=2, alpha=0.9) +
+ # geom_hline(yintercept = -log10(0.05/nrow(dddf)), col="black", linetype=2, alpha=0.5) +
+  geom_hline(yintercept= -log10(alpha), col="black", linetype=1, alpha=0.5) +
+  theme_bw() +
+  scale_x_continuous(breaks=chroms$Position, labels=chroms$Chromosome) +
+  theme(axis.text.x = element_text(angle=45, hjust = 1, face="bold", size=8)) +
+  theme(legend.title = element_blank()) +
+  theme(panel.grid = element_blank()) +
+  theme(legend.position = "none") +
+  scale_color_manual(values=mycolors) +
+  scale_fill_manual(breaks=unique(dd$Chromosome), values=mycolors) +
+  ylab("-log10(p)\n") +
+  xlab("\nChromosome") +
+  ggtitle("FWR vs MIG Comparison") +
+  labs(subtitle = "Sex as Covariant") +
+  theme(plot.title = element_text(hjust=0.5, face="bold") ) +
+  theme(plot.subtitle = element_text(hjust=0.5))
+
+ggsave("outputs/figure-2/figure-2.jpg", width=8.5, height=11/3)
+```

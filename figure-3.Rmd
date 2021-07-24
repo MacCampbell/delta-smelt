@@ -1,0 +1,361 @@
+---
+title: "figure-3"
+author: "Mac Campbell"
+date: "July 6, 2021"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, warning=FALSE, message=FALSE)
+```
+
+```{r}
+library(tidyverse)
+library(snpR)
+library(RColorBrewer)
+library(gplots)
+library(viridis)
+library(randomForest)
+library(caret)
+library(class)
+library(gmodels)
+library(adegenet)
+library(vcfR)
+```
+
+## Figure 3
+
+Need some genotypes.    
+
+121 inds, 109 @ 90 thresh
+```{sh, eval=FALSE}
+srun -t 36:00:00 -p high --mem=32G --nodes=2 $HOME/angsd/angsd -minInd 109 -nthreads 12 \
+-bam $HOME/delta-smelt/bamlists/2012.bamlist -rf $HOME/genomes/hypomesus-20210204/large-contigs.txt \
+-out $HOME/delta-smelt/outputs/100/snps \
+-minMaf 0.05 -minMapQ 20 -minQ 20 -GL 1 -doMajorMinor 1 -doMaf 1 -SNP_pval 1e-6 \
+-doGeno 2 -doPost 1 -postCutoff 0.9 -doPlink 2  > outputs/100/snps.out 2> outputs/100/snps.err &
+
+srun -t 36:00:00 -p high --mem=32G --nodes=2 $HOME/angsd/angsd -minInd 109 -nthreads 12 \
+-bam $HOME/delta-smelt/bamlists/2012.bamlist -rf $HOME/genomes/hypomesus-20210204/large-contigs.txt \
+-out $HOME/delta-smelt/outputs/100/snps-characters \
+-minMaf 0.05 -minMapQ 20 -minQ 20 -GL 1 -doMajorMinor 1 -doMaf 1 -SNP_pval 1e-6 \
+-doGeno 4 -doPost 1 -postCutoff 0.9 -doPlink 2  > outputs/100/snps-characters.out 2> outputs/100/snps-characters.err &
+```
+
+Locally
+```{sh, eval=FALSE}
+plink --tped snps.tped --tfam snps.tfam --recodeA --out snps-geno-numeric --allow-extra-chr --noweb
+plink --tped snps.tped --tfam snps.tfam  --out binary --recode --allow-extra-chr --noweb
+plink --ped binary.ped --map binary.map --recode vcf --allow-extra-chr -out recode
+```
+
+
+```{r, eval=FALSE}
+snps <- read_delim("outputs/100/snps-geno-numeric.raw", delim = " ") %>%
+  select(-IID, -SEX, -PAT, -MAT, -PHENOTYPE)
+save(snps, file="outputs/figure-3/snps.rda")
+```
+
+Get all the data you may need
+```{r}
+load("outputs/figure-3/snps.rda")
+df<-read_csv("outputs/figure-2/association-results.csv")
+meta<-read_csv("metadata/2012-samples.csv")
+```
+ 
+### Append Phenos and Tidy
+
+```{r}
+data<-bind_cols(meta$aggregated_new_classes,snps)
+cols<-meta %>% select(aggregated_new_classes) %>% mutate(Color=ifelse(aggregated_new_classes=="MIG","blue","red"))
+```
+
+snpr input as characters is easier.   
+```{r}
+genos<-read_tsv("outputs/100/snps-characters.geno.gz", col_names=FALSE)
+genos<-genos[1:ncol(genos)-1]
+
+genos$X1<-as.factor(genos$X1)
+
+# grab our sample metadata
+snp_meta <- genos[,1:2]
+sample_meta<-select(meta, aggregated_new_classes) %>% rename(Phenotype=aggregated_new_classes)
+sample_meta$Phenotype<-as.factor(sample_meta$Phenotype)
+# import, remember to remove metadata from the genotypes!
+my.dat <- import.snpR.data(genos[,-c(1:2)], 
+                           snp.meta = snp_meta, 
+                           sample.meta = sample_meta)
+```
+Plotting PCA for sanity:
+```{r}
+p <- plot_clusters(my.dat, facets = c("Phenotype"))
+```
+
+### RF
+```{r}
+rf<-run_random_forest(my.dat, response="Phenotype", num.trees = 1000, interpolate = "af")
+```
+
+```{r}
+rf$models$.base_.base$model
+## dummy phenotypes vs. predicted
+#with(rf$models$.base_.base$predictions, plot(pheno, predicted)) # not overfit
+```
+
+### GWAS
+```{r}
+asso<-calc_association(my.dat,response="Phenotype", method="chisq")
+out<-get.snpR.stats(asso) %>% as_tibble()
+```
+
+```{r}
+dd<-out %>% mutate(Index=1:n()) %>% rename(Chromosome=X1, Position=X2) %>% 
+  mutate(bonfer = p.adjust(chi_p_Phenotype, method = "bonferroni")) 
+dd$Chromosome<-as.factor(dd$Chromosome)
+
+#calc significance
+variants<-nrow(dd)
+#Number of expected variants
+num<-10
+p.T = num/variants 
+prior.odds = p.T/(1-p.T) 
+pwr = 1 #upper bound for power --> upper bound for alpha 
+post.odds = 0.95/(1-0.95) 
+alpha = prior.odds*pwr/post.odds 
+paste(signif(alpha,3)) 
+-log10(alpha)
+```
+
+```{r}
+dd<-dd %>%
+   mutate(log10p=-log10(chi_p_Phenotype)) %>% filter(str_detect(Chromosome, "lg"))
+chroms<-dd %>% group_by(Chromosome) %>% mutate(Start=min(Index), Stop=max(Index)) %>% 
+  select(Chromosome,Start,Stop) %>% unique() %>% 
+  mutate(Position=round((Start+Stop)/2))
+
+outliers <- dd %>% filter(log10p >= -log10(alpha))
+#Make enough colors
+nb.cols <- nrow(chroms)
+mycolors <- colorRampPalette(brewer.pal(8, "Set1"))(nb.cols)
+#randomize
+mycolors<-sample(mycolors)
+
+dd %>% arrange(-log10p)
+```
+
+```{r}
+ggplot(dd) +
+  geom_point(data=dd, aes(x=Index, y=log10p, color=Chromosome), alpha=0.75, cex=0.5) +
+  geom_point(data=outliers, aes(x=Index, y=log10p, fill=Chromosome), pch=21, cex=2, alpha=0.9) +
+#  geom_hline(yintercept = -log10(0.05/nrow(dd)), col="black", linetype=2, alpha=0.5) +
+  geom_hline(yintercept= -log10(alpha), col="black", linetype=1, alpha=0.5) +
+  theme_bw() +
+  scale_x_continuous(breaks=chroms$Position, labels=chroms$Chromosome) +
+  theme(axis.text.x = element_text(angle=45, hjust = 1, face="bold", size=8)) +
+  theme(legend.title = element_blank()) +
+  theme(panel.grid = element_blank()) +
+  theme(legend.position = "none") +
+  scale_color_manual(values=mycolors) +
+  scale_fill_manual(breaks=unique(dd$Chromosome), values=mycolors) +
+  ylab("-log10(p)\n") +
+  xlab("\nChromosome") +
+  ggtitle("FWR vs MIG Comparison") +
+  #labs(subtitle = "Sex as Covariant") +
+  theme(plot.title = element_text(hjust=0.5, face="bold") ) +
+  theme(plot.subtitle = element_text(hjust=0.5))
+
+```
+
+### DAPC
+
+```{r, eval=FALSE}
+vcf<-read.vcfR(file="outputs/100/recode.vcf")
+genind<-vcfR2genind(vcf)
+save(genind, file="outputs/100/recode.genind")
+```
+```{r}
+load("outputs/100/recode.genind")
+genind@pop=as.factor(meta$aggregated_new_classes)
+dapc<-dapc(genind, n.pca=110, n.da=1)
+
+scatter(dapc, col=c("red","blue"))
+
+```
+
+Let's see how the assignment probs work out:
+
+```{r}
+#Another way to look at the assignments
+post<-as_tibble(dapc$posterior)
+post$Phenotype<-dapc$grp
+post <- post %>% mutate(FID=1:n()) %>% select(FID, Phenotype, FWR, MIG)
+ggplot((post %>% filter(Phenotype == "FWR")), aes(x=FWR))+
+  geom_histogram(color="darkred", fill="red")+
+  ggtitle("Posterior Probability of FWR Assigned to FWR")
+
+ggplot((post %>% filter(Phenotype == "MIG")), aes(x=MIG))+
+  geom_histogram(color="darkblue", fill="blue")+
+  ggtitle("Posterior Probability of MIG Assigned to MIG")
+tidy<-post %>% pivot_longer(!c(FID,Phenotype)) %>% rename(Assignment=name)
+```
+
+```{r}
+ggplot(tidy %>% filter(Phenotype==Assignment), aes(x=value, color=Assignment, fill=Assignment), alpha=0.9) +
+  geom_histogram() +
+  facet_wrap(.~Phenotype, ncol=1) +
+  scale_color_manual(values=c("red","blue")) +
+  scale_fill_manual(values=c("red","blue")) +
+  theme_bw() +
+  theme(panel.grid=element_blank())+
+  theme(panel.background = element_blank()) +
+  ylab("Count\n") +
+  xlab("\nPosterior Probability")
+
+ggsave("outputs/figure-3/figure-3.jpg")
+```
+
+Get sites with the most loadings:
+```{r}
+contrib <- loadingplot(dapc$var.contr, axis=1,
+thres=.00075, lab.jitter=0)
+
+contribs<-as.tibble(dapc$var.contr)
+contribs$Position<-rownames(dapc$var.contr)
+topcons<-contribs %>% filter(LD1 > 0.00075) %>% separate(Position, into=c("Chrom","Site")) %>% unique() %>%
+  mutate(Position=paste0(Chrom,"_",Site))
+
+#box<-boxplot(dapc$var.contr)
+
+```
+
+```{r}
+out <- boxplot.stats(dapc$var.contr)$out
+out_ind <- which(dapc$var.contr %in% c(out))
+
+outs<-dapc$var.contr[out_ind,]
+```
+### Heatmap
+
+```{r}
+results<-read_csv("outputs/figure-2/association-results.csv")
+#results<-dd %>% rename(Minor=minor)
+
+#tops<-results %>% top_n(200, log10p) %>% mutate(value=paste0(Chromosome,"_",Position,"_",Minor)) %>%
+ # mutate(possite=paste0(Chromosome,"-",Position))
+names<-as_tibble(colnames(snps)) %>% separate(value, into=c("Chrom","Site","Allele")) %>%
+  mutate(Position=paste0(Chrom,"_",Site))
+snps2<-snps
+colnames(snps2)<-names$Position
+snpsites<-snps2[colnames(snps2) %in% c(topcons$Position)]
+snpsites
+```
+
+```{r}
+heatmap.2(as.matrix(snpsites), labCol="", cexRow = 0.6,
+          labRow="",
+          colRow = cols$Color, RowSideColors = cols$Color,
+          trace="none",
+          key=FALSE, srtCol=45, margins = c(10,5), na.color=viridis(1),
+          col=viridis, dendrogram=c("row"),
+          hclustfun = function(x) hclust(x,method = 'ward.D'))
+```
+
+```{r}
+#labCol=tops$possite
+# 
+#Colv= FALSE,
+pdf(file="outputs/figure-3/figure-3.pdf", width=11, height=14)
+heatmap.2(as.matrix(snpsites), labCol="", cexRow = 0.6,
+          labRow="",
+          colRow = cols$Color, RowSideColors = cols$Color,
+          trace="none",
+          key=FALSE, srtCol=45, margins = c(10,5), na.color=viridis(1),
+          col=viridis, dendrogram=c("row"),
+          hclustfun = function(x) hclust(x,method = 'ward.D'))
+dev.off()
+```
+
+Prepare numeric genos:
+
+```{r, eval=FALSE}
+numeric<-format_snps(my.dat, output="sn") %>% as_tibble() %>%
+  mutate(Sites=paste0(X1,"-",X2))
+
+nums<-numeric %>% filter(Sites %in% tops$possite) %>% select(-Sites)
+# Not downsizing
+#nums<-numeric %>% select(-Sites)
+numericgenos<-nums[,-c(1:2)]
+trans<-transpose(numericgenos)
+trans<-na.roughfix(trans)
+
+#get 121/2 random samples
+randos<-floor(runif(60, min=1, max=121))
+smeltTrain<-trans[randos,]
+train.labels<-sample_meta$Phenotype[randos]
+sample_meta$Phenotype[randos] %>% as_tibble() %>% group_by(value) %>% summarize(Count=n())
+```
+
+Running knn:
+
+```{r, eval=FALSE}
+trControl <- trainControl(method = "repeatedcv",
+                          number = 100,
+                          repeats = 10)
+
+training<-smeltTrain
+training$Type<-train.labels
+
+fit <- train(Type ~ .,
+             method     = "knn",
+             tuneGrid   = expand.grid(k = seq(from=1, to=29, by=2)),
+             trControl  = trControl,
+             metric     = "Accuracy",
+             data       = training)
+```
+
+
+```{r, eval=FALSE}
+pred <- knn(train = smeltTrain, test = trans, cl = train.labels, k=fit$finalModel$k, prob = TRUE)
+
+sample_meta$OptKPred<-pred
+sample_meta$OptKProb<-round(attr(pred, "prob"),2)
+CrossTable(x = sample_meta$Phenotype, y = sample_meta$OptKPred, prop.chisq=FALSE)
+fit$finalModel$k
+max(fit$results$Accuracy)
+```
+
+
+```{r, eval=FALSE}
+fitp<-ggplot(fit) +
+  ylim(min(fit$results$Accuracy-.05),0.95)+
+  theme_classic() +
+  theme(axis.title = element_text(size=14)) +
+  xlab("\nNumber of Neighbors") +
+  ylab("Accuracy\n")
+
+fitp
+save(fitp, file="outputs/figure-4/fitp.rda")
+```
+
+Cross table:
+
+```{r, eval=FALSE}
+res<-knn(train=smeltTrain, test=trans, cl=train.labels, k=fit$finalModel$k)
+CrossTable(x = sample_meta$Phenotype, y = res, prop.chisq=FALSE)
+cross<-as_tibble(sample_meta$Phenotype) %>% rename(Phenotype=value) %>% mutate(Otolith=Phenotype)
+cross$Prediction<-res
+summary<-cross %>% group_by(Otolith, Prediction) %>% summarize(Count=n())
+
+cross<-ggplot(summary, aes(Otolith, Prediction)) + 
+  geom_point(aes(size = Count), colour = "darkgreen") +
+  theme_classic() +
+  geom_text(aes(label=Count), color="white", face="bold", size=6)+
+  scale_size_continuous(range=c(10,30)) +
+  theme(legend.position = "none")+
+  theme(axis.title = element_text(size=14)) +
+  theme(axis.text = element_text(face="bold")) 
+ # ggtitle("Cross Table of Phenotype and Predicted Phenotype")
+  #theme(plot.title = element_text(hjust=0.5, size=16,face="bold"))
+cross
+save(cross, file="outputs/figure-4/cross.rda")
+```

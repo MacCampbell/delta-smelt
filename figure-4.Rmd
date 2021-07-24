@@ -1,0 +1,31 @@
+---
+title: "figure-4"
+author: "Mac Campbell"
+date: "7/7/2021"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+library(tidyverse)
+library(ggpubr)
+library(grid)
+library(gridExtra)
+```
+
+## Figure 4 
+We need more sites for a more even KNN result.
+
+```{r}
+load("outputs/figure-4/fitp.rda")
+load("outputs/figure-4/cross.rda")
+```
+
+```{r}
+blank <- grid.rect(gp=gpar(col="white"))
+ggarrange(arrangeGrob(fitp,blank, ncol=2, widths=c(2,1)), cross, ncol=1)
+ggsave("outputs/figure-4/figure-4.jpg", width = 6, height=6)
+```

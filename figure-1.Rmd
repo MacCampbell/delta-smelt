@@ -14,6 +14,8 @@ library(tidyverse)
 library(BSDA)
 library(ggmap)
 library(ggsn)
+library(RcppCNPy)
+library(ggpubr)
 ```
 
 ## Map of samples in analyses
@@ -64,17 +66,167 @@ ggsave("outputs/figure-1/figure1ab.jpg", width=11, height=8.5/2)
 Need to generate a beagle file then do PCA/admixture
 
 ```{sh, eval=FALSE}
-srun -p high -t 48:00:00 --mem=32G --nodes=2 $HOME/angsd/angsd -P 24  -bam $HOME/delta-smelt/bamlists/2012.bamlist -GL 1 \
--doGLF 2 -doMajorMinor 1 -doMaf 2 -SNP_pval 1e6 -minMapQ 20 -minQ 20 -rf $HOME/delta-smelt/metadata/large-contigs.txt \
--out $HOME/delta-smelt/outputs/100/2012 > outputs/100/beagle.out 2> outputs/100/beagle.err &
-
+srun -p high -t 48:00:00 --mem=32G --nodes=2 $HOME/angsd/angsd -P 24 -GL 1 -out $HOME/delta-smelt/outputs/100/genolike -nThreads 10 -doGlf 2 -doMajorMinor 1 -SNP_pval 1e-6 -doMaf 1  -bam $HOME/delta-smelt/bamlists/2012.bamlist -minInd 109 -minMapQ 20 -minQ 20 > outputs/100/beagle.out 2> outputs/100/beagle.err &
 
 ## Checking kinship while I'm at it
-python $HOME/pcangsd/pcangsd.py -beagle $HOME/delta-smelt/outputs/100/2012.beagle.gz -kinship \
+python $HOME/pcangsd/pcangsd.py -beagle $HOME/delta-smelt/outputs/100/genolike.beagle.gz -kinship -selection -sites_save -snp_weights \
 -o outputs/100/2012.kinship -threads 10
 
-python $HOME/pcangsd/pcangsd.py -beagle $HOME/delta-smelt/outputs/100/2012.beagle.gz \
--relate $HOME/delta-smelt/outputs/2012.kinship.kinship.npy -admix -o outputs/100/2012-kinremoved -threads 10
+python $HOME/pcangsd/pcangsd.py -beagle $HOME/delta-smelt/outputs/100/genolike.beagle.gz \
+-relate $HOME/delta-smelt/outputs/100/2012.kinship.kinship.npy -admix -o outputs/100/2012-kinremoved -threads 10
 
 ```
+
+
+```{r}
+cov<-read_delim("outputs/100/2012-kinremoved.cov", col_names=FALSE, delim=" ") %>% as.matrix()
+```
+
+```{r}
+#' @param samples character vector with the individuals IDs in the order in which
+#' they were passed in the bamlist to angsd.
+#' @param cov covariance matrix
+covar2pcs <- function(samples, cov) {
+  
+  
+  eig <- eigen(cov, symm = TRUE)
+  PC <- as.data.frame(eig$vectors) %>%
+    as_tibble() %>%
+    setNames(sprintf("PC-%02d", 1:ncol(.)))
+  
+  samtib <- tibble(sample = samples)
+  
+  list(
+    PCs = bind_cols(samtib, PC),
+    eigevalues = eig$values
+  )
+}
+```
+
+```{r}
+pca <- covar2pcs(top2013$`Sequence File Name`, cov)
+
+pca_long <- pca$PCs %>%
+  tidyr::gather(., key = "PC", "val", -sample)
+
+# then expand a grid of the possible comparisons (ordered)
+expg <- expand.grid(sample = pca$PCs$sample,
+                    PCx = sprintf("PC-%02d", 1:6),
+                    PCy = sprintf("PC-%02d", 1:6),
+                    stringsAsFactors = FALSE) %>%
+  tibble::as_tibble()
+
+# then left join the pca results onto that
+pca_pairs <- dplyr::left_join(expg, pca_long, by = c("sample", "PCx" = "PC")) %>%
+  dplyr::rename(val_x = val) %>%
+  dplyr::left_join(pca_long, by = c("sample", "PCy" = "PC")) %>%
+  dplyr::rename(val_y = val)
+
+pp_meta <- pca_pairs %>%   # just keep the first 6 PCs around
+  left_join(., top2013, by = c("sample" = "Sequence File Name")) %>%
+  mutate(group = aggregated_new_classes) 
+```
+
+Plot    
+
+```{r}
+npc <- 6
+pp_meta2 <- pp_meta %>%
+  filter( (PCx %in% sprintf("PC-%02d", 1:npc)) & 
+            (PCy %in% sprintf("PC-%02d", 1:npc)) )
+
+eig <- eigen(cov, symm = TRUE)
+var<-eig$values/sum(eig$values)
+cumvar<-cumsum(eig$values)/sum(eig$values)
+
+head(var)
+head(cumvar)
+```
+
+```{r}
+ggplot(pp_meta2, aes(x = val_x, y = val_y, color=aggregated_new_classes)) +
+  geom_point() +
+  facet_grid(PCx ~ PCy)
+```
+
+```{r}
+sub12<-pp_meta2 %>% filter( (PCx =="PC-01") & (PCy =="PC-02") )
+
+pc12<-ggplot(sub12, aes(x = val_x, y = val_y, color=aggregated_new_classes))+
+  geom_point(size = 2, alpha=0.75) +
+  scale_fill_discrete(na.value = "white") + 
+  theme_bw()+
+  theme(panel.grid=element_blank())+
+  xlab(paste("PC1", " ", round((100*var[1]),2), "%", sep = ""))+
+  ylab(paste("PC2", " ", round((100*var[2]),2), "%", sep = ""))+
+  theme(legend.position = "")+
+  theme(plot.title = element_text(hjust = 0.5)) +
+  scale_color_manual(values = c("red","blue")) 
+
+sub13<-pp_meta2 %>% filter( (PCx =="PC-01") & (PCy =="PC-03") )
+
+pc13<-ggplot(sub13, aes(x = val_x, y = val_y, color = aggregated_new_classes)) +
+  geom_point(size = 2, alpha=0.75) +
+  scale_fill_discrete(na.value = "white") + 
+  theme_bw()+
+  theme(panel.grid=element_blank())+
+  xlab(paste("PC1", " ", round((100*var[1]),2), "%", sep = ""))+
+  ylab(paste("PC3", " ", round((100*var[3]),2), "%", sep = ""))+
+  theme(legend.position = "")+
+  theme(plot.title = element_text(hjust = 0.5)) +
+  scale_color_manual(values = c("red","blue")) 
+
+pcs<-ggarrange(pc12, pc13, ncol = 2)
+pcs
+```
+
+```{r}
+ggarrange(map, pcs, ncol=1, heights=c(2,1.1))
+
+ggsave("outputs/figure-1/figure-1.jpg", width=8, height=8)
+```
+
+Checking on seleciton cause
+
+```{r}
+selection<-npyLoad("outputs/100/2012.kinship.selection.npy") %>% as_tibble() %>% rename(Stat=V1)
+weights<-npyLoad("outputs/100/2012.kinship.weights.npy") %>% as_tibble() %>% rename(Weight=V1)
+sites<-read_tsv("outputs/100/2012.kinship.sites", col_names=c("Site"))
+weights<-bind_cols(sites, selection, weights) %>% mutate(p=1-pchisq(Stat,1))
+```
+```{r}
+weights %>% filter(p<1e-5)
+```
+
+What did k=2 look like?
+
+```{r}
+k<-npyLoad("outputs/100/2012-kinremoved.admix.Q.npy") %>% as_tibble()
+colnames(k)<-gsub("V","Q",colnames(k))
+q<-bind_cols(top2013, k) %>% arrange(aggregated_new_classes) %>% mutate(Index=1:n())
+q2<-q%>%dplyr::select(Index, lat, lon, aggregated_new_classes,Q1,Q2) %>% gather(key=Ancestry, value=Q, 5:6)
+pops2<-q  %>% group_by(aggregated_new_classes) %>% mutate(Start=min(Index), Stop=max(Index)) %>% 
+  select(aggregated_new_classes,Start,Stop) %>% unique() %>% 
+  mutate(Position=round((Start+Stop)/2))
+```
+
+
+```{r}
+kplot<-ggplot(q2) +
+  geom_col(aes(x=Index, y=Q, fill=Ancestry), color="NA", size = 0, width = 1)+
+  geom_segment(data=pops2, x = pops2$Start - 0.5, y=0, xend = pops2$Start-0.5, yend=1, alpha=0.9, size=0.25) +
+  geom_segment(data=pops2, x = pops2$Stop[length(pops2$Stop)]  + 0.5, y=0, xend= pops2$Stop[length(pops2$Stop)] + 0.5, yend=1,  alpha=0.9,
+               size=0.25) +
+  geom_segment(x=0, xend= pops2$Stop[length(pops2$Stop)], y=1, yend=1, alpha=0.9, size=0.25) +
+  theme(axis.text.x = element_text(angle=45, hjust=1)) +
+  ylim(0,1.01) +
+  xlim(-0.1, pops2$Stop[length(pops2$Stop)]+1) +
+  theme(panel.background = element_blank())+
+  scale_x_continuous(breaks=pops2$Position, labels=pops2$Site) +
+  xlab("") +
+    scale_fill_viridis_d(option="magma")
+
+kplot
+```
+
 
