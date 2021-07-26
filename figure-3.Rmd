@@ -179,7 +179,9 @@ genind@pop=as.factor(meta$aggregated_new_classes)
 dapc<-dapc(genind, n.pca=110, n.da=1)
 
 scatter(dapc, col=c("red","blue"))
-
+pdf("outputs/figure-3/figure-3a.pdf", width = 6, height=4)
+scatter(dapc, col=c("red","blue"))
+dev.off()
 ```
 
 Let's see how the assignment probs work out:
@@ -209,23 +211,26 @@ ggplot(tidy %>% filter(Phenotype==Assignment), aes(x=value, color=Assignment, fi
   theme(panel.grid=element_blank())+
   theme(panel.background = element_blank()) +
   ylab("Count\n") +
-  xlab("\nPosterior Probability")
+  xlab("\nPosterior Probability") +
+  theme(legend.position = "")
 
-ggsave("outputs/figure-3/figure-3.jpg")
+ggsave("outputs/figure-3/figure-3b.pdf", width=6, height = 4)
 ```
 
 Get sites with the most loadings:
 ```{r}
 contrib <- loadingplot(dapc$var.contr, axis=1,
-thres=.00075, lab.jitter=0)
+thres=.0005, lab.jitter=0)
 
 contribs<-as.tibble(dapc$var.contr)
 contribs$Position<-rownames(dapc$var.contr)
-topcons<-contribs %>% filter(LD1 > 0.00075) %>% separate(Position, into=c("Chrom","Site")) %>% unique() %>%
+topcons<-contribs %>% filter(LD1 > 0.0005) %>% separate(Position, into=c("Chrom","Site")) %>%
   mutate(Position=paste0(Chrom,"_",Site))
 
 #box<-boxplot(dapc$var.contr)
+loads<-topcons[seq(1, nrow(topcons), by=2),] %>% arrange(-LD1)
 
+write_csv(loads, "Supplemental/loadings.csv")
 ```
 
 ```{r}
@@ -235,18 +240,27 @@ out_ind <- which(dapc$var.contr %in% c(out))
 outs<-dapc$var.contr[out_ind,]
 ```
 ### Heatmap
+How many hits should we have between association-results and our called snps?
 
+`(base) Macs-MacBook-Pro-2:delta-smelt mac$ cat outputs/figure-2/association-results.csv | perl -pe 's/,/\t/g' | sort -n -k 7 | tail -n 100 | cut -f 1,2 | perl -pe 's/\t/_/g' | while read line; do grep $line outputs/100/snps.tped >> outputs/100/matches.txt; done;`
+
+`wc -l outputs/100/matches.txt 
+      42 outputs/100/matches.txt`
+      
+      
 ```{r}
 results<-read_csv("outputs/figure-2/association-results.csv")
-#results<-dd %>% rename(Minor=minor)
+results<-dd %>% dplyr::rename(Minor=minor)
 
-#tops<-results %>% top_n(200, log10p) %>% mutate(value=paste0(Chromosome,"_",Position,"_",Minor)) %>%
- # mutate(possite=paste0(Chromosome,"-",Position))
+tops<-results %>% top_n(200, log10p) %>% mutate(value=paste0(Chromosome,"_",Position,"_",Minor)) %>%
+  mutate(possite=paste0(Chromosome,"_",Position))
+
 names<-as_tibble(colnames(snps)) %>% separate(value, into=c("Chrom","Site","Allele")) %>%
   mutate(Position=paste0(Chrom,"_",Site))
 snps2<-snps
 colnames(snps2)<-names$Position
-snpsites<-snps2[colnames(snps2) %in% c(topcons$Position)]
+#snpsites<-snps2[colnames(snps2) %in% c(topcons$Position)]
+snpsites<-snps2[colnames(snps2) %in% c(tops$possite)]
 snpsites
 ```
 
@@ -279,7 +293,7 @@ Prepare numeric genos:
 
 ```{r, eval=FALSE}
 numeric<-format_snps(my.dat, output="sn") %>% as_tibble() %>%
-  mutate(Sites=paste0(X1,"-",X2))
+  mutate(Sites=paste0(X1,"_",X2))
 
 nums<-numeric %>% filter(Sites %in% tops$possite) %>% select(-Sites)
 # Not downsizing
