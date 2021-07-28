@@ -85,6 +85,7 @@ sample_meta$Phenotype<-as.factor(sample_meta$Phenotype)
 my.dat <- import.snpR.data(genos[,-c(1:2)], 
                            snp.meta = snp_meta, 
                            sample.meta = sample_meta)
+
 ```
 Plotting PCA for sanity:
 ```{r}
@@ -176,6 +177,7 @@ save(genind, file="outputs/100/recode.genind")
 ```{r}
 load("outputs/100/recode.genind")
 genind@pop=as.factor(meta$aggregated_new_classes)
+save(genind, file="outputs/figure-3/genind.rda")
 dapc<-dapc(genind, n.pca=110, n.da=1)
 
 scatter(dapc, col=c("red","blue"))
