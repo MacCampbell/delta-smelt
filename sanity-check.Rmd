@@ -214,7 +214,7 @@ write_csv(tops, "metadata/all-years-samples.csv")
 
 ```{sh, eval=FALSE}
 srun -p high -t 48:00:00 --mem=32G --nodes=2 $HOME/angsd/angsd -P 24  -bam $HOME/delta-smelt/bamlists/all-years.bamlist \
--yBin $HOME/delta-smelt/phenos/2012.phenos -cov $HOME/delta-smelt/phenos/2012.cov -minMapQ 20 -minQ 20 -minInd 131 -doAsso 2 \
+-yBin $HOME/delta-smelt/phenos/all-years.phenos -cov $HOME/delta-smelt/phenos/all-years.cov -minMapQ 20 -minQ 20 -minInd 131 -doAsso 2 \
 -doPost 1 -GL 1 -minCount 2 -out $HOME/delta-smelt/outputs/sanity-check/assoc -doMajorMinor 1 -doMaf 1 -SNP_pval 1e-6 \
 -ref $HOME/genomes/hypomesus-20210204/Hyp_tra_F_20210204.fa -rf $HOME/genomes/hypomesus-20210204/large-contigs.txt \
 > outputs/sanity-check/assoc.out 2> outputs/sanity-check/assoc.err &
