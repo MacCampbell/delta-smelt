@@ -14,6 +14,7 @@ library(tidyverse)
 library(adegenet)
 library(snpR)
 library(RColorBrewer)
+library(ggrepel)
 ```
 
 ## How does DAPC work when we separate randomly
@@ -188,7 +189,7 @@ reads$Counts<-as.numeric(reads$Counts)
 
 ```{r}
 tops<-reads %>% top_frac(.75, Counts) %>% filter(sex!=0)
-samplesize<-tops %>% group_by(aggregated_new_classes ,sex) %>% summarize(`Sample Size`=n())
+samplesize<-tops %>% group_by(aggregated_new_classes, `Birth Year (HOBBS)`, sex) %>% summarize(`Sample Size`=n())
 samplesize
 ```
 
@@ -219,3 +220,120 @@ srun -p high -t 48:00:00 --mem=32G --nodes=2 $HOME/angsd/angsd -P 24  -bam $HOME
 -ref $HOME/genomes/hypomesus-20210204/Hyp_tra_F_20210204.fa -rf $HOME/genomes/hypomesus-20210204/large-contigs.txt \
 > outputs/sanity-check/assoc.out 2> outputs/sanity-check/assoc.err &
 ```
+
+```{r}
+df<-read_tsv(file="outputs/sanity-check/assoc.lrt0.gz") %>% mutate(log10p = -log10(dchisq(LRT, df = 1))) %>%
+  filter(log10p>=0 & log10p != "Inf") %>%
+  mutate(p = dchisq(LRT, df=1)) %>%
+  mutate(bonfer = p.adjust(p, method = "bonferroni")) %>% 
+  mutate(BHfdr = p.adjust(p, method = "BH")) %>%
+  group_by(Chromosome) %>%
+  mutate(adjpchrom = p.adjust(p, method = "bonferroni")) %>%
+  mutate(BHfdrchrom = p.adjust(p, method = "BH"))
+
+df %>% arrange(-LRT) %>% head(n=20)
+```
+
+
+```{r}
+variants<-nrow(df)
+#Number of expected variants
+num<-25
+p.T = num/variants 
+prior.odds = p.T/(1-p.T) 
+pwr = 1 #upper bound for power --> upper bound for alpha 
+post.odds = 0.95/(1-0.95) 
+alpha = prior.odds*pwr/post.odds 
+paste(signif(alpha,3)) 
+-log10(alpha)
+df %>% dplyr::filter(log10p > -log10(alpha)) 
+```
+
+```{r}
+
+data<-df  %>% filter(str_detect(Chromosome, "lg"))
+dd <- data %>% ungroup %>% mutate(Index=1:n())
+dd$Chromosome<-as.factor(dd$Chromosome)
+
+chroms<-dd %>% group_by(Chromosome) %>% mutate(Start=min(Index), Stop=max(Index)) %>% 
+  select(Chromosome,Start,Stop) %>% unique() %>% 
+  mutate(Position=round((Start+Stop)/2))
+
+outliers <- dd %>% filter(log10p >= -log10(alpha))
+#Make enough colors
+nb.cols <- nrow(chroms)
+mycolors <- colorRampPalette(brewer.pal(8, "Set1"))(nb.cols)
+#randomize
+mycolors<-sample(mycolors)
+
+ggplot(dd) +
+  geom_point(data=dd, aes(x=Index, y=log10p, color=Chromosome), alpha=0.75, cex=0.5) +
+  geom_point(data=outliers, aes(x=Index, y=log10p, fill=Chromosome), pch=21, cex=2, alpha=0.9) +
+ # geom_hline(yintercept = -log10(0.05/nrow(dddf)), col="black", linetype=2, alpha=0.5) +
+  geom_hline(yintercept= -log10(alpha), col="black", linetype=1, alpha=0.5) +
+  theme_bw() +
+  scale_x_continuous(breaks=chroms$Position, labels=chroms$Chromosome) +
+  theme(axis.text.x = element_text(angle=45, hjust = 1, face="bold", size=8)) +
+  theme(legend.title = element_blank()) +
+  theme(panel.grid = element_blank()) +
+  theme(legend.position = "none") +
+  scale_color_manual(values=mycolors) +
+  scale_fill_manual(breaks=unique(dd$Chromosome), values=mycolors) +
+  ylab("-log10(p)\n") +
+  xlab("\nChromosome") +
+  ggtitle("FWR vs MIG Comparison") +
+  labs(subtitle = "Sex as Covariant") +
+  theme(plot.title = element_text(hjust=0.5, face="bold") ) +
+  theme(plot.subtitle = element_text(hjust=0.5))
+
+ggsave("outputs/sanity-check/all-samples-gwas.jpg", width=8.5, height=11/3)
+```
+
+Compare
+
+```{r}
+res2021<-read_csv("Supplemental/Supplemental Document S1.csv") %>% select(Chromosome, Position, LRT, log10p) %>% 
+  rename(LRT2012=LRT, log10p2012=log10p)
+resall<- dd %>% select(Chromosome, Position, LRT, log10p) %>% rename(LRTAll=LRT, log10pAll=log10p)
+
+combo<-left_join(res2021, resall)
+
+top2012<-combo %>% filter(LRT2012 > 15.7) 
+topAll<-combo %>% filter(LRTAll > 15.2)
+
+top <- bind_rows(top2012, topAll) %>% unique() %>%
+  mutate(Significance2012=ifelse( (LRT2012 > 15.7), "Yes", "No")) %>%
+  mutate(SignificanceAll=ifelse( (LRTAll > 15.2), "Yes","No")) %>%
+  mutate(SignificanceBoth = ifelse(Significance2012==SignificanceAll, "Yes","No"))
+
+res2021 %>% filter(LRT2012 > 15.7) %>% left_join(resall)
+resall %>% filter(LRTAll > 15.2) %>% left_join(res2021)
+```
+
+```{r} 
+top
+```
+lg01	2467271	G	A	0.087333	121	16.30721	95/14/0	4.546346	2.842194e-05	
+lg02	11230311	A	C	0.305927	121	16.12949	29/22/1	4.505376	3.123377e-05	
+lg02	11230464	T	G	0.303122	121	18.22571	62/38/14	4.987094	1.030163e-05	
+lg15	2268817	C	T	0.239868	121	15.87289	23/29/0	4.446172	3.579543e-05	
+lg23	7996307	G	A	0.147093	121	15.73304	65/22/0	4.413882	3.855835e-05	
+
+```{r}
+top
+```
+
+```{r}
+ggplot(combo, aes(x=log10pAll, y=log10p2012)) +
+  geom_point(alpha=.75)+
+  geom_vline(xintercept = 4.028243, alpha=0.75, linetype=2) +
+  geom_hline(yintercept = 4.006327, alpha=0.75, linetype=2) +
+  geom_point(data=top, color="red", alpha=0.75) +
+  geom_text_repel(data=top, aes(label=paste0(Chromosome,"-",Position))) +
+  theme_bw() +
+  theme(panel.grid = element_blank())
+
+ggsave("outputs/sanity-check/gwas-v-gwas.jpg")
+```
+
+  
