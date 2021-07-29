@@ -44,5 +44,5 @@ vignettes/*.pdf
 *html
 **/.DS_Store
 /outputs/
-sanity*
+sanity-check.Rmd
 
