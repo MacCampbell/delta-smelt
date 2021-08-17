@@ -54,6 +54,12 @@ reads<-left_join(metaall, counted) %>%
   mutate(Pheno=ifelse(aggregated_new_classes=="MIG",0,1))
 reads$Counts<-as.numeric(reads$Counts)
 write_csv(reads, "outputs/100/reads.csv")
+
+#Create Supplemental Document S1
+sdoc<-reads %>% select(-X5,-X12,-X17, -X18, -X20) %>% rename(FishID=X1) %>% 
+  rename(`Sex 1=male, 2=female, 0=unknown`=sex) %>% select(-old_classes, -change, -Pheno) %>%
+  rename(`Aligned and deduplicated reads` = Counts)
+write_csv(sdoc, "Supplemental/Supplemental Document S1.csv")
 ```
 
 ```{r}
