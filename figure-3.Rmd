@@ -252,7 +252,7 @@ How many hits should we have between association-results and our called snps?
       
 ```{r}
 results<-read_csv("outputs/figure-2/association-results.csv")
-results<-dd %>% dplyr::rename(Minor=minor)
+##results<-dd %>% dplyr::rename(Minor=minor)
 
 tops<-results %>% top_n(200, log10p) %>% mutate(value=paste0(Chromosome,"_",Position,"_",Minor)) %>%
   mutate(possite=paste0(Chromosome,"_",Position))
@@ -280,7 +280,7 @@ heatmap.2(as.matrix(snpsites), labCol="", cexRow = 0.6,
 #labCol=tops$possite
 # 
 #Colv= FALSE,
-pdf(file="outputs/figure-3/figure-3.pdf", width=11, height=14)
+pdf(file="outputs/figure-3/figure-3-200.pdf", width=11, height=14)
 heatmap.2(as.matrix(snpsites), labCol="", cexRow = 0.6,
           labRow="",
           colRow = cols$Color, RowSideColors = cols$Color,

@@ -49,11 +49,14 @@ map<-base +
   theme(axis.text.x = element_text(angle=45, vjust = 1, hjust=1)) +
 #  theme(axis.ticks = element_blank()) +
   scale_fill_manual(values=c("red","blue")) +
-   ggsn::scalebar(x.min =mapbox[1], x.max= mapbox[3], y.min=mapbox[2], y.max=mapbox[4],
-                 dist = 25, dist_unit = "km", st.size=3, height=0.04, transform=TRUE, model = 'WGS84',
-                 st.color="black", location = "bottomright") +
+   ggsn::scalebar(x.min = mapbox[1], x.max= mapbox[3], y.min=mapbox[2], y.max=mapbox[4],
+                 dist = 25, dist_unit = "km", st.size=3, height=0.03, transform=TRUE, model = 'WGS84',
+                 st.color="black", location = "bottomright", st.bottom = FALSE) +
   theme(panel.margin = unit(2, "lines")) +
   theme(strip.text.x = element_text(face="bold", size=12)) 
+
+#                 dist = .5, dist_unit = "km", st.size=3, height=0.02, transform=TRUE, model = 'WGS84',
+#                 st.color="black")
 
 map
 
@@ -183,7 +186,7 @@ pcs
 ```{r}
 ggarrange(map, pcs, ncol=1, heights=c(2,1.1))
 
-ggsave("outputs/figure-1/figure-1.jpg", width=8, height=8)
+ggsave("outputs/figure-1/figure-1.pdf", width=8, height=8)
 ```
 
 Checking on seleciton cause
