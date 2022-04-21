@@ -1,0 +1,286 @@
+---
+title: "Appendix-1"
+author: "Mac Campbell"
+date: "4/21/2022"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE,warning=FALSE,message=FALSE)
+```
+
+```{r}
+library(tidyverse)
+library(vcfR)
+library(adegenet)
+library(ggpubr)
+library(snpR)
+library(BSDA)
+library(ggmap)
+```
+
+
+## Prepare Meta
+```{r}
+meta<-read_csv("metadata/2012-samples.csv")
+
+write_tsv(meta %>% select(Sample_ID), col_names = FALSE, file="outputs/appendix-1/names.tsv")
+```
+
+
+## PCA of Pruned SNPs
+
+pruning and reheadering vcf
+
+```{sh, eval=FALSE}
+bcftools +prune -l 0.6 -w 10000 recode.vcf  -Ov -o recode.prune.vcf
+bcftools reheader --samples names.tv -o recode.prune.reheadered.vcf recode.prune.vcf
+```
+
+```{r}
+vcf<-read.vcfR(file="outputs/appendix-1/recode.prune.reheadered.vcf")
+genind<-vcfR2genind(vcf)
+save(genind, file="outputs/appendix-1/reheadered.genind")
+```
+
+```{r}
+genind@pop=as.factor(meta$aggregated_new_classes)
+
+gen<-genind
+X <- tab(gen, NA.method="mean")
+
+pca1 <- dudi.pca(X,scannf=FALSE,scale=FALSE, nf = 3)
+temp <- as.integer(pop(gen))
+myCol <- transp(c("red","blue"),.7)[temp]
+myPch <- c(15,17)[temp]
+plot(pca1$li, col=myCol, cex=1, pch=myPch)
+```
+
+
+Tidyversion
+
+```{r}
+pcdf<-as_tibble(pca1$l1) %>% rename(PC1=RS1, PC2=RS2, PC3=RS3)
+pcdf$Phenotype<-pop(gen)
+
+eigens<-as_tibble(pca1$eig) %>% rename(Eigen=value) %>% mutate(Porportion=Eigen/sum(Eigen)*100)
+
+pc12<-ggplot(pcdf)+
+  geom_point(aes(x=PC1, y=PC2, fill=Phenotype), alpha=0.75, size=2, pch=21)+
+  scale_fill_manual(values = c("red","blue")) +
+  xlab(paste0("PC1 ", round(eigens$Porportion[1],2),"%")) +
+  ylab(paste0("PC2 ", round(eigens$Porportion[2],2),"%")) +
+  theme_bw()+
+  theme(panel.grid=element_blank()) +
+  theme(axis.title = element_text(face="bold")) +
+  theme(legend.title = element_text(face="bold")) +
+  theme(legend.position = "NONE")
+
+pc13<-ggplot(pcdf)+
+  geom_point(aes(x=PC1, y=PC3, fill=Phenotype), alpha=0.75, size=2, pch=21)+
+  scale_fill_manual(values = c("red","blue")) +
+  xlab(paste0("PC1 ", round(eigens$Porportion[1],2),"%")) +
+  ylab(paste0("PC3 ", round(eigens$Porportion[3],2),"%")) +
+  theme_bw()+
+  theme(panel.grid=element_blank()) +
+  theme(axis.title = element_text(face="bold")) +
+  theme(legend.title = element_text(face="bold"))
+```
+
+
+```{r}
+pcs<-ggarrange(pc12, pc13, ncol = 2, widths=c(1,1.25))
+pcs
+ggsave("outputs/appendix-1/snpspcs.jpeg", width=8, height=3.5)
+
+```
+
+
+```{r}
+ggplot(pcdf)+
+  geom_point(aes(x=PC1, y=PC2, fill=Phenotype), alpha=0.75, size=2, pch=21)+
+  scale_fill_manual(values = c("red","blue")) +
+  xlab(paste0("PC1 ", round(eigens$Porportion[1],2),"%")) +
+  ylab(paste0("PC2 ", round(eigens$Porportion[2],2),"%")) +
+  theme_bw()+
+  theme(panel.grid=element_blank()) +
+  theme(axis.title = element_text(face="bold")) +
+  theme(legend.title = element_text(face="bold"))
+        
+ggsave("outputs/appendix-1/snpspcs12.jpeg", width=4.5, height=3.5)
+```
+
+## Nucleotide Diversity
+
+```{r}
+cols<-meta %>% select(aggregated_new_classes) %>% mutate(Color=ifelse(aggregated_new_classes=="MIG","blue","red"))
+
+genos<-read_tsv("outputs/100/snps-characters.geno.gz", col_names=FALSE)
+genos<-genos[1:ncol(genos)-1]
+
+genos$X1<-as.factor(genos$X1)
+
+# grab our sample metadata
+snp_meta <- genos[,1:2]
+sample_meta<-select(meta, aggregated_new_classes) %>% rename(Phenotype=aggregated_new_classes)
+sample_meta$Phenotype<-as.factor(sample_meta$Phenotype)
+# import, remember to remove metadata from the genotypes!
+my.dat <- import.snpR.data(genos[,-c(1:2)], 
+                           snp.meta = snp_meta, 
+                           sample.meta = sample_meta)
+
+```
+
+Plotting PCA for sanity:
+```{r}
+p <- plot_clusters(my.dat, facets = c("Phenotype"))
+```
+
+
+
+```{r}
+x <- calc_basic_snp_stats(my.dat, "Phenotype")
+stats<-get.snpR.stats(x, "Phenotype", stats="single")
+```
+
+```{r}
+ggplot(stats) +
+  geom_boxplot(aes(y=pi, fill=subfacet)) +
+  facet_wrap(.~subfacet) +
+  theme_bw()+
+  theme(panel.grid=element_blank()) +
+  scale_fill_manual("Phenotype", values=c(rgb(1,0,0,0.75),rgb(0,0,1,0.75))) 
+```
+
+```{r}
+v1<-stats %>% filter(subfacet=="FWR") %>% select(pi)
+v2<-stats %>% filter(subfacet=="MIG") %>% select(pi)
+```
+
+```{r}
+t.test(v1, v2)
+```
+
+```{r}
+ggplot(stats) +
+  geom_boxplot(aes(y=, fill=subfacet)) +
+  facet_wrap(.~subfacet) +
+  theme_bw()+
+  theme(panel.grid=element_blank()) +
+  scale_fill_manual("Phenotype", values=c(rgb(1,0,0,0.75),rgb(0,0,1,0.75))) 
+```
+
+## Length and Sex
+
+Length arranged by sample date
+
+```{r}
+mm<-meta %>% select(Sample_ID, Year, SampleDate, `Fork Length`, new_classes, station, lat, lon) %>% filter(Year==2013) %>%
+  filter(new_classes %in% c("FWR1", "FWM1", "FWM2")) %>%
+  mutate(Phenotype=ifelse(new_classes=="FWR1","FWR","MIG")) %>%
+  separate(SampleDate, c("Day","Month","Year"))
+mm$Day<-as.numeric(mm$Day)
+mm$Year<-as.numeric(mm$Year)
+mm$Month<-factor(mm$Month, levels = c("Jan","Feb","Mar"))
+```
+
+```{r}
+mm %>% group_by(Phenotype, Month) %>% summarize(Count=n()) %>% select(Phenotype, Month, Count)
+mm %>% group_by(Phenotype) %>% summarize(Count=n())
+```
+
+```{r}
+ggplot(mm, aes(x = `Fork Length`, fill=Phenotype)) +
+  geom_density(alpha = 0.5) +
+  facet_grid(Phenotype~Month) +
+  theme_bw() +
+  theme(panel.grid = element_blank()) +
+  ylab("Density\n") +
+  xlab("\nFork Length") +
+  scale_fill_manual(values=c("red","blue"))
+```
+
+Testing for differences.    
+```{r}
+tester<-function(month, dataframe) {
+
+  MIG<-dataframe %>% filter(Month== month, Phenotype == "MIG")
+  FWR<-dataframe %>% filter(Month== month, Phenotype == "FWR")
+
+  sx<-sd(MIG$`Fork Length`)
+  sy<-sd(FWR$`Fork Length`)
+
+ztest<-z.test(MIG$`Fork Length`, FWR$`Fork Length`, sigma.x=sx, sigma.y=sy)
+return(ztest)
+
+}
+```
+
+```{r}
+tester("Jan", mm)
+tester("Feb", mm)
+tester("Mar", mm)
+```
+
+Counts of sex:    
+Sex 1=male, 2=female
+```{r}
+meta %>% group_by(aggregated_new_classes, sex) %>% summarize(Count=n())
+```
+
+
+## Misclassified Inds from KNN
+
+Figure 4B, 7 individuals not correctly assigned.
+
+```{r}
+knnresults<-read_csv("outputs/appendix-1/knn-results.csv")
+```
+
+```{r}
+total<-bind_cols(meta, knnresults) %>% filter(Otolith != Prediction) %>% filter(aggregated_new_classes!="MIG") %>%
+  select(Sample_ID, aggregated_new_classes, new_classes, station, sex, SampleDate, lat, lon, station) %>%
+  mutate(Phenotype="Misclassified FWR") %>% group_by(Phenotype, lon,lat) %>%
+  summarize(Count=n())
+
+total
+
+total2<-bind_cols(meta, knnresults) %>% filter(Otolith != Prediction) %>% filter(aggregated_new_classes!="FWR") %>%
+  select(Sample_ID, aggregated_new_classes, new_classes, station, sex, SampleDate, lat, lon, station) %>%
+  mutate(Phenotype="Misclassified MIG") %>% group_by(Phenotype, lon,lat) %>%
+  summarize(Count=n())
+
+total2
+```
+
+```{r}
+top2013<-read_csv("metadata/2012-samples.csv")
+
+plot2<-top2013  %>% mutate(Phenotype=ifelse(new_classes=="FWR1","FWR","MIG")) %>%
+  group_by(Phenotype, lon, lat) %>%
+   summarize(Count=n()) %>% unique() %>% bind_rows(total,total2)
+```
+```{r}
+mapbox <- c(-122.5, 37.75, -121.25, 38.5)
+sfemap <- get_stamenmap(mapbox, maptype = "terrain-background")
+basemap<-ggmap(sfemap) + 
+  xlab("\nLongitude") +
+  ylab("Latitude\n")
+```
+
+
+```{r}
+  basemap +
+  geom_point(data=plot2, aes(x=lon, y=lat, fill=Phenotype, size=Count), alpha=0.75, pch=21) +
+ # geom_label_repel(data=toplot, aes(x=lon, y=lat, label=paste0(new_classes, "-", Count))) +
+  facet_wrap(.~Phenotype, ncol=2) +
+  xlab("\nLongitude") +
+  ylab("Latitude\n") +
+  theme(axis.text.x = element_text(angle=45, vjust = 1, hjust=1)) +
+#  theme(axis.ticks = element_blank()) +
+  scale_fill_manual(values=c("red","blue","grey50","grey50")) +
+  theme(panel.margin = unit(2, "lines")) +
+  theme(strip.text.x = element_text(face="bold", size=12)) 
+
+ggsave("outputs/appendix-1/classifications.jpeg")
+```

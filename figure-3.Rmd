@@ -360,6 +360,8 @@ res<-knn(train=smeltTrain, test=trans, cl=train.labels, k=fit$finalModel$k)
 CrossTable(x = sample_meta$Phenotype, y = res, prop.chisq=FALSE)
 cross<-as_tibble(sample_meta$Phenotype) %>% rename(Phenotype=value) %>% mutate(Otolith=Phenotype)
 cross$Prediction<-res
+write_csv(cross, file="outputs/appendix-1/knn-results.csv")
+
 summary<-cross %>% group_by(Otolith, Prediction) %>% summarize(Count=n())
 
 cross<-ggplot(summary, aes(Otolith, Prediction)) + 
