@@ -1,0 +1,122 @@
+---
+title: "Supplemental Document S4"
+author: "Mac Campbell"
+date: "4/22/2022"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, warning=FALSE, message=FALSE)
+```
+
+```{r}
+library(tidyverse)
+library(biomaRt)
+library(knitr)
+```
+
+
+## Features Near Associated SNPs
+
+
+Want chroms 1, 2, 15, and 23. Reading GFF from GenBank.     
+```{r}
+gff<-read_tsv("outputs/supplemental-document-s4/GCF_021917145.1_fHypTra1_genomic.gff.gz", skip=8, col_names = FALSE) %>% filter(X1 %in% c("NC_061060.1","NC_061061.1","NC_061074.1","NC_061082.1"))
+```
+
+```{r}
+genes<-filter(gff,X3=="gene")
+```
+
+What kind of linkage window do we have?     
+https://speciationgenomics.github.io/ld_decay/    
+https://github.com/speciationgenomics/scripts/blob/master/ld_decay_calc.py      
+
+```{sh, eval=FALSE}
+plink --vcf recode.vcf --allow-extra-chr --maf 0.05 --geno 0.1 --mind 0.5 --chr lg01 \
+--thin 0.5 -r2 gz --ld-window 100000 --ld-window-kb 1000 \
+--ld-window-r2 0 \
+--make-bed --out dsm-lg01
+
+
+source activate py2; ./ld_decay_calc.py -i dsm-lg01.ld.gz -o dsm-log01; conda deactivate;
+```
+
+```{r}
+ld_bins <- read_tsv("outputs/supplemental-document-s4/dsm-lg01.ld_decay_bins")
+
+# plot LD decay
+ggplot(ld_bins, aes(distance, avg_R2)) +
+  geom_line() +
+  xlab("Distance (bp)") + 
+  ylab(expression(italic(r)^2)) +
+  theme_bw() +
+  theme(axis.text.x=element_text(angle=45, vjust=0.5)) 
+```
+
+
+```{r}
+ggplot(ld_bins, aes(distance, avg_R2)) +
+  geom_line() +
+  xlab("Distance (bp)") + 
+  ylab(expression(italic(r)^2)) +
+  theme_bw() +
+  theme(axis.text.x=element_text(angle=45, vjust=0.5)) +
+  xlim(0,200000)
+```
+
+```{r}
+ld_bins
+```
+
+By 26500 we've lost all ld.
+
+```{r}
+genes %>% filter(X1=="NC_061060.1") %>% filter(X5 > 2467271-26500) %>% filter(X4 < 2467271+26500) %>% mutate( Distance = X4 - 2467271, End = X5 - 2467271)
+```
+
+Transcfription factor 
+
+```{r}
+genes %>% filter(X1=="NC_061061.1") %>% filter(X5 > 11230311-26500) %>% filter(X4 < 11230464+26500)
+```
+
+nrsn1: nervous system development (GO:0007399)
+slc6a3: neurotransmitter transport
+
+
+```{r}
+genes %>% filter(X1=="NC_061074.1") %>% filter(X5 > 2268817-26500) %>% filter(X4 < 2268817+26500)
+```
+
+
+```{r}
+genes %>% filter(X1=="NC_061082.1") %>% filter(X5 > 7996307-26500) %>% filter(X4 < 7996307+26500)
+```
+
+
+Get GO's     
+
+```{r}
+ensembl = useEnsembl(biomart="genes", mirror="uswest", dataset = "drerio_gene_ensembl")
+```
+
+```{r}
+geneDat <- getBM(attributes=c('description', 'zfin_id_symbol','ensembl_gene_id','go_id','name_1006',"definition_1006"),
+              mart = ensembl, filters='zfin_id_symbol', 
+              values=c("nrsn1","nfkb1","slc6a3","aamdc","ints4","kctd14","rps3","tfcp2l1","clasp1a"))
+
+```
+
+```{r, results='asis'}
+kable(geneDat, caption="biomaRt results")
+```
+
+```{r}
+write_csv(geneDat, file="outputs/supplemental-document-s4/go-terms.csv")
+```
+
+
+```{r}
+geneDat %>% as_tibble() %>% dplyr::select(go_id) %>% write_tsv("outputs/supplemental-document-s4/gos.tsv")
+```

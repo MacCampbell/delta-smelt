@@ -27,8 +27,82 @@ meta<-read_csv("metadata/2012-samples.csv")
 write_tsv(meta %>% select(Sample_ID), col_names = FALSE, file="outputs/appendix-1/names.tsv")
 ```
 
+## I SNP Distribution and RAD loci
 
-## PCA of Pruned SNPs
+__1__ Calculate RAD loci based on regex for ballpark, then in silico prediction
+
+```{sh, eval=FALSE}
+grep -o  -i CCTGCAGG large-contigs.fasta | wc -l
+
+```
+
+14,673
+
+Reverse complement   
+```{sh, eval=FALSE}
+grep -o  -i GGACGTCC large-contigs.fasta | wc -l
+```
+
+3,849
+
+14673+3879
+[1] 18552
+
+In silico prediction     
+`perl -I ~/perl5/lib/perl5/ ~/Dropbox/bin/restrictionAnalysis.pl SbfI large-contigs.fasta `
+
+The total number of restriction sites for SbfI is:	16578      
+The average fragment size is:	24047.7176145577     
+The total number of fragments is:	16651    
+The total number of genome contigs:	73    
+
+
+__2__ RAD Loci?
+
+
+In terms of GL's, we can aggregrate
+
+
+
+```{r, eval=TRUE}
+dist<-read_tsv("outputs/100/genolike.beagle.gz") %>% separate(marker,into=c("Chrom","Pos"))
+temp<-dist %>% filter(startsWith(Chrom, "lg")) # %>% filter(Chrom %in% c("lg01","lg02"))
+temp$Pos<-as.numeric(temp$Pos)
+```
+
+```{r}
+temp %>% group_by(Chrom) %>% mutate(trunc1 = (Pos %/% 5000) * 5000) %>% select(Chrom, Pos, trunc1) %>% select(Chrom, trunc1) %>% unique()
+```
+
+11,638 loci     
+
+
+In terms of calls, we can define loci:     
+
+https://darencard.net/blog/2019-12-20-RAD-locus-footprints/     
+
+```{sh, eval=FALSE}
+cat ../../metadata/2012-samples.csv | cut -d ',' -f 4,29,38 | perl -pe 's/,/\t/g' > spreadsheet.txt             
+cat ../../bamlists/2012.bamlist | perl -pe 's/bams\///g' | perl -pe 's/\.sort.+$//g' > list.txt          
+cat list.txt | while read line; do grep $line spreadsheet.txt >> 2012.txt; done;      
+cut -f 3 2012.txt | while read line; do ln -s ../../bams/$line.sort.flt.bam . ; done;      
+cut -f 3 2012.txt | while read line; do ln -s ../../bams/$line.sort.flt.bam.bai . ; done;      
+cat 2012.txt | awk ' {print $1, $2, $3, "combined"} ' > combined.txt        
+cat combined.txt | perl -pe 's/ /\t/g' > combined-tab.txt      
+srun -p high -t 4:00:00 bash script.sh combined-tab.txt 4 3 .sort.flt.bam 20 5 25 25 200      
+srun -p high -t 4:00:00 bash script.sh combined-tab.txt 4 3 .sort.flt.bam 20 5 25 25 100     
+```
+
+`maccamp@farm:~/delta-smelt/outputs/appendix-1$ wc -l combined_rad_loci.qual20.dp5.miss25.merge25.len100.bed`       
+
+11090 combined_rad_loci.qual20.dp5.miss25.merge25.len100.bed      
+   
+`maccamp@farm:~/delta-smelt/outputs/appendix-1$ wc -l combined_rad_loci.qual20.dp5.miss25.merge25.len200.bed`       
+
+2674 combined_rad_loci.qual20.dp5.miss25.merge25.len200.bed    
+
+
+## II PCA of Pruned SNPs
 
 pruning and reheadering vcf
 
@@ -110,16 +184,28 @@ ggplot(pcdf)+
 ggsave("outputs/appendix-1/snpspcs12.jpeg", width=4.5, height=3.5)
 ```
 
-## Nucleotide Diversity
+## III Nucleotide Diversity
+
+
 
 ```{r}
 cols<-meta %>% select(aggregated_new_classes) %>% mutate(Color=ifelse(aggregated_new_classes=="MIG","blue","red"))
 
-genos<-read_tsv("outputs/100/snps-characters.geno.gz", col_names=FALSE)
+genos<-read_tsv("outputs/100/snps-characters.geno.gz", col_names=FALSE) %>% mutate(Site=paste0(X1,"-",X2))
+
+pruned<-read_tsv("outputs/appendix-1/pruned-markers.txt", col_names = c("Chrom","Pos")) %>% mutate(Site=paste0(Chrom,"-",Pos))
+
+genos<-filter(genos, Site %in% pruned$Site) %>% select(-Site)
+
 genos<-genos[1:ncol(genos)-1]
 
 genos$X1<-as.factor(genos$X1)
 
+```
+
+
+
+```{r}
 # grab our sample metadata
 snp_meta <- genos[,1:2]
 sample_meta<-select(meta, aggregated_new_classes) %>% rename(Phenotype=aggregated_new_classes)
@@ -161,16 +247,8 @@ v2<-stats %>% filter(subfacet=="MIG") %>% select(pi)
 t.test(v1, v2)
 ```
 
-```{r}
-ggplot(stats) +
-  geom_boxplot(aes(y=, fill=subfacet)) +
-  facet_wrap(.~subfacet) +
-  theme_bw()+
-  theme(panel.grid=element_blank()) +
-  scale_fill_manual("Phenotype", values=c(rgb(1,0,0,0.75),rgb(0,0,1,0.75))) 
-```
 
-## Length and Sex
+## IV Length and Sex
 
 Length arranged by sample date
 
@@ -229,7 +307,7 @@ meta %>% group_by(aggregated_new_classes, sex) %>% summarize(Count=n())
 ```
 
 
-## Misclassified Inds from KNN
+## V Misclassified Inds from KNN
 
 Figure 4B, 7 individuals not correctly assigned.
 
@@ -284,3 +362,5 @@ basemap<-ggmap(sfemap) +
 
 ggsave("outputs/appendix-1/classifications.jpeg")
 ```
+
+

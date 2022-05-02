@@ -35,6 +35,13 @@ For 1 & 2, see doAlign.sh for basics.
 
 ### Get number of reads/bam file.    
 
+Number of reads, % mapped from .sort.bam files. Reverse enginerring from %mapped doesn't work well. 
+/home/maccamp/ds-lh/data
+
+`ls | grep sort.bam | grep -v bai | while read line; do samtools flagstat $line | grep total >> totals.txt; done;`
+`ls | grep sort.bam | grep -v bai >> totals.files.txt`
+`ls | grep sort.bam | grep -v bai | while read line; do samtools flagstat $line | grep "mapped (" >> mappeds.txt; done; `
+
 ` ls | grep sort.flt.bam | grep -v bai | while read line; do samtools flagstat $line | grep mapped | head -n 1 >> counts.txt; done;`     
 ` ls | grep sort.flt.bam | grep -v bai >> counts.files.txt`    
 
@@ -47,18 +54,43 @@ counted<-bind_cols(files,counts)
 counted$`Sequence File Name`<-gsub("_R1.sort.flt.bam","",counted$File)
 ```
 
+#### More info as requested by reviewer
+
+```{r}
+totals<-read_tsv("outputs/100/totals.files.txt", col_names=c("File"))
+totalscounts<-read_tsv("outputs/100/totals.txt", col_names=c("Total"))
+mapped<-read_tsv("outputs/100/mappeds.txt", col_names=c("Mapped"))
+totals<-bind_cols(totals, totalscounts, mapped)
+
+totals$`Sequence File Name`<-gsub("_R1.sort.bam","",totals$File)
+totals<-totals %>% separate(Total, into=c("Total","Whatever1","Whatever2"), sep=" \\+") %>% select(-Whatever1, -Whatever2)
+totals<-totals %>% separate(Mapped, into=c("Mapped","Whatever"), sep=" \\+") %>% select(-Whatever, -File)
+totals$Mapped<-as.numeric(totals$Mapped)
+totals$Total<-as.numeric(totals$Total) 
+
+totals<- totals %>%
+  mutate(`Percentage Mapped`= round((Mapped/Total)*100,2))
+totals
+```
+
+
 ```{r}
 reads<-left_join(metaall, counted) %>%
   mutate(R1=paste0(`Sequence File Name`,"_R1")) %>% 
   mutate(R2=paste0(`Sequence File Name`,"_R2"))  %>%
   mutate(Pheno=ifelse(aggregated_new_classes=="MIG",0,1))
 reads$Counts<-as.numeric(reads$Counts)
-write_csv(reads, "outputs/100/reads.csv")
 
+write_csv(reads, "outputs/100/reads.csv")
+```
+
+```{r}
 #Create Supplemental Document S1
+#joining by Ht20-33_2012_A05     `Sequence File Name`
+
 sdoc<-reads %>% select(-X5,-X12,-X17, -X18, -X20) %>% rename(FishID=X1) %>% 
   rename(`Sex 1=male, 2=female, 0=unknown`=sex) %>% select(-old_classes, -change, -Pheno) %>%
-  rename(`Aligned and deduplicated reads` = Counts)
+  rename(`Aligned and deduplicated reads` = Counts) %>% left_join(totals)
 write_csv(sdoc, "Supplemental/Supplemental Document S1.csv")
 ```
 
