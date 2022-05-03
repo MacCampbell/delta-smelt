@@ -158,7 +158,8 @@ pc13<-ggplot(pcdf)+
   theme_bw()+
   theme(panel.grid=element_blank()) +
   theme(axis.title = element_text(face="bold")) +
-  theme(legend.title = element_text(face="bold"))
+  theme(legend.title = element_text(face="bold")) +
+  theme(legend.position = "NONE")
 ```
 
 

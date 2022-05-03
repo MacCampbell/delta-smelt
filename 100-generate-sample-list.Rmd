@@ -22,6 +22,7 @@ metaall<-read_csv("metadata/genetics-oto-intersect-06032021_JH.csv") %>%
   filter(aggregated_new_classes %in% c("FWR","MIG")) %>%
   filter(`Birth Year (HOBBS)`==2012)
 
+write_csv(metaall, "metadata/2012-all-samples.csv")
 metaall %>% group_by(aggregated_new_classes) %>% summarize(Count=n())
 ```
 
