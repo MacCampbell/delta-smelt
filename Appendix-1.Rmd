@@ -27,7 +27,7 @@ meta<-read_csv("metadata/2012-samples.csv")
 write_tsv(meta %>% select(Sample_ID), col_names = FALSE, file="outputs/appendix-1/names.tsv")
 ```
 
-## I SNP Distribution and RAD loci
+## I RAD loci
 
 __1__ Calculate RAD loci based on regex for ballpark, then in silico prediction
 
@@ -57,7 +57,7 @@ The total number of fragments is:	16651
 The total number of genome contigs:	73    
 
 
-__2__ RAD Loci?
+__2__ RAD Loci based on GLs and called SNPs    
 
 
 In terms of GL's, we can aggregrate

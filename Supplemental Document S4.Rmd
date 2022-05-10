@@ -21,7 +21,8 @@ library(knitr)
 
 Want chroms 1, 2, 15, and 23. Reading GFF from GenBank.     
 ```{r}
-gff<-read_tsv("outputs/supplemental-document-s4/GCF_021917145.1_fHypTra1_genomic.gff.gz", skip=8, col_names = FALSE) %>% filter(X1 %in% c("NC_061060.1","NC_061061.1","NC_061074.1","NC_061082.1"))
+gff<-read_tsv("outputs/supplemental-document-s4/GCF_021917145.1_fHypTra1_genomic.gff.gz", 
+              skip=8, col_names = FALSE) %>% filter(X1 %in% c("NC_061060.1","NC_061061.1","NC_061074.1","NC_061082.1"))
 ```
 
 ```{r}
